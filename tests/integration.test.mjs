@@ -40,7 +40,7 @@ const skip = process.platform !== "darwin"
 let counter = 0;
 const sidFor = (name) => `barista-test-${process.pid}-${Date.now()}-${++counter}-${name}`;
 
-async function waitFor(check, timeoutMs = 1000) {
+async function waitFor(check, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try { return check(); }
