@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// Requires Node >= 23 (TypeScript stripping is on by default).
 import { spawn } from "node:child_process";
 import {
   existsSync,
@@ -26,44 +25,35 @@ import {
   stopCaffeinate,
   watchdogPidFile,
   writeSnapshot,
-} from "./lib.ts";
+} from "./lib.mjs";
 
 if (process.platform !== "darwin") process.exit(0);
-const major = parseInt(process.versions.node.split(".")[0], 10);
-if (major < 23) process.exit(0);
 
-interface HookPayload {
-  session_id: string;
-  hook_event_name: string;
-  tool_name?: string;
-  tool_input?: { run_in_background?: boolean; [k: string]: unknown };
-}
-
-async function readStdin(): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function startWatchdog(sid: string, claudePid: number): void {
+function startWatchdog(sid, claudePid) {
   const f = watchdogPidFile(sid);
   if (hasLivePidFile(f)) return;
   const here = dirname(fileURLToPath(import.meta.url));
   const child = spawn(
     process.execPath,
-    [join(here, "watchdog.ts"), sid, String(claudePid)],
+    [join(here, "watchdog.mjs"), sid, String(claudePid)],
     { detached: true, stdio: "ignore" },
   );
   child.unref();
   if (child.pid) writeFileSync(f, String(child.pid));
 }
 
-function isBgBash(payload: HookPayload): boolean {
+function isBgBash(payload) {
   return payload.tool_name === "Bash"
     && payload.tool_input?.run_in_background === true;
 }
 
-const payload = JSON.parse(await readStdin()) as HookPayload;
+const payload = JSON.parse(await readStdin());
 const event = payload.hook_event_name;
 const sid = payload.session_id;
 const claudePid = process.ppid;

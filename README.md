@@ -10,7 +10,7 @@ barista replaces that bounded window with `caffeinate -i -w <claude-pid>` for th
 
 ## How it works
 
-A small Node script wired up to the session and tool-call hooks starts and stops `caffeinate` based on what the session is actually doing.
+A small Node script (plain ESM) wired up to the session and tool-call hooks starts and stops `caffeinate` based on what the session is actually doing.
 
 | Event              | What barista does                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------------ |
@@ -33,9 +33,9 @@ When the bg leader is spawned in its own process group (the standard case for de
 ## Requirements
 
 - macOS (the `caffeinate` binary)
-- Node.js >= 23 (the hook script is TypeScript and relies on built-in type stripping)
+- Node.js >= 18 (any active LTS works)
 
-On any other platform or older Node, the script exits silently — installing barista is harmless, it just does nothing.
+On any other platform, the script exits silently — installing barista is harmless, it just does nothing.
 
 ## Install
 

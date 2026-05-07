@@ -11,30 +11,28 @@ import { join } from "node:path";
 
 export const STATE_DIR = "/tmp/barista";
 
-export const caffeinatePidFile = (sid: string) => join(STATE_DIR, `${sid}.caffeinate.pid`);
-export const watchdogPidFile = (sid: string) => join(STATE_DIR, `${sid}.watchdog.pid`);
-export const bgDir = (sid: string) => join(STATE_DIR, `${sid}.bg`);
-export const pgDir = (sid: string) => join(STATE_DIR, `${sid}.pg`);
-export const preToolSnapFile = (sid: string) => join(STATE_DIR, `${sid}.pre.json`);
+export const caffeinatePidFile = (sid) => join(STATE_DIR, `${sid}.caffeinate.pid`);
+export const watchdogPidFile = (sid) => join(STATE_DIR, `${sid}.watchdog.pid`);
+export const bgDir = (sid) => join(STATE_DIR, `${sid}.bg`);
+export const pgDir = (sid) => join(STATE_DIR, `${sid}.pg`);
+export const preToolSnapFile = (sid) => join(STATE_DIR, `${sid}.pre.json`);
 
-export function isAlive(pid: number): boolean {
+export function isAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-interface ProcRow { pid: number; ppid: number; pgid: number }
-
-function positiveInt(value: string): number {
+function positiveInt(value) {
   const parsed = parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function readPidFile(file: string): number {
+function readPidFile(file) {
   return existsSync(file) ? positiveInt(readFileSync(file, "utf8")) : 0;
 }
 
 // Note: side-effecting read — removes the file if its pid is dead. Single
 // writer per session in practice, so the implicit cleanup is safe.
-export function hasLivePidFile(file: string): boolean {
+export function hasLivePidFile(file) {
   if (!existsSync(file)) return false;
   const pid = readPidFile(file);
   if (pid && isAlive(pid)) return true;
@@ -42,7 +40,7 @@ export function hasLivePidFile(file: string): boolean {
   return false;
 }
 
-export function killPidFile(file: string): void {
+export function killPidFile(file) {
   const pid = readPidFile(file);
   if (pid) {
     try { process.kill(pid); } catch { /* already gone */ }
@@ -50,8 +48,8 @@ export function killPidFile(file: string): void {
   rmSync(file, { force: true });
 }
 
-export function parseProcTable(output: string): ProcRow[] {
-  const rows: ProcRow[] = [];
+export function parseProcTable(output) {
+  const rows = [];
   for (const line of output.split("\n")) {
     const m = line.trim().match(/^(\d+)\s+(\d+)\s+(\d+)$/);
     if (m) rows.push({ pid: positiveInt(m[1]), ppid: positiveInt(m[2]), pgid: positiveInt(m[3]) });
@@ -59,12 +57,12 @@ export function parseProcTable(output: string): ProcRow[] {
   return rows;
 }
 
-function readProcTable(): ProcRow[] {
+function readProcTable() {
   return parseProcTable(execSync("ps -A -o pid=,ppid=,pgid=").toString());
 }
 
-function childrenByParent(procs: ProcRow[]): Map<number, number[]> {
-  const childrenOf = new Map<number, number[]>();
+function childrenByParent(procs) {
+  const childrenOf = new Map();
   for (const p of procs) {
     const children = childrenOf.get(p.ppid) ?? [];
     children.push(p.pid);
@@ -73,9 +71,9 @@ function childrenByParent(procs: ProcRow[]): Map<number, number[]> {
   return childrenOf;
 }
 
-function descendants(childrenOf: Map<number, number[]>, rootPid: number, excluded: Set<number>): number[] {
-  const found: number[] = [];
-  const visit = (pid: number) => {
+function descendants(childrenOf, rootPid, excluded) {
+  const found = [];
+  const visit = (pid) => {
     for (const child of childrenOf.get(pid) ?? []) {
       if (excluded.has(child)) continue;
       found.push(child);
@@ -86,7 +84,7 @@ function descendants(childrenOf: Map<number, number[]>, rootPid: number, exclude
   return found;
 }
 
-export function startCaffeinate(sid: string, watchPid: number): void {
+export function startCaffeinate(sid, watchPid) {
   const f = caffeinatePidFile(sid);
   if (hasLivePidFile(f)) return;
   const child = spawn("caffeinate", ["-i", "-w", String(watchPid)], {
@@ -97,11 +95,11 @@ export function startCaffeinate(sid: string, watchPid: number): void {
   if (child.pid) writeFileSync(f, String(child.pid));
 }
 
-export function stopCaffeinate(sid: string): void {
+export function stopCaffeinate(sid) {
   killPidFile(caffeinatePidFile(sid));
 }
 
-export function getPgid(pid: number): number {
+export function getPgid(pid) {
   try {
     return positiveInt(execSync(`ps -o pgid= -p ${pid}`).toString().trim());
   } catch {
@@ -110,7 +108,7 @@ export function getPgid(pid: number): number {
 }
 
 // All PIDs in the descendant tree of `rootPid`, excluding any PID in `exclude`.
-export function descendantPids(rootPid: number, exclude: number[]): number[] {
+export function descendantPids(rootPid, exclude) {
   return descendants(childrenByParent(readProcTable()), rootPid, new Set(exclude));
 }
 
@@ -121,7 +119,7 @@ export function descendantPids(rootPid: number, exclude: number[]): number[] {
 // dies and its children get adopted by PID 1. We only fall back to PID
 // tracking when the bg process happens to share Claude's pgid, in which case
 // we can't distinguish its descendants from Claude's own.
-export function recordBg(sid: string, pids: number[], claudePgid: number): void {
+export function recordBg(sid, pids, claudePgid) {
   if (pids.length === 0) return;
   const pidToPgid = new Map(readProcTable().map(p => [p.pid, p.pgid]));
   const bg = bgDir(sid);
@@ -142,7 +140,7 @@ export function recordBg(sid: string, pids: number[], claudePgid: number): void 
 // Drop entries with no live representatives; for PID entries, also expand to
 // any live descendants so we keep tracking work even after the original
 // leader dies. Returns the number of items still considered alive.
-export function reconcileBg(sid: string): number {
+export function reconcileBg(sid) {
   const bg = bgDir(sid);
   const pg = pgDir(sid);
   const hasBg = existsSync(bg);
@@ -158,14 +156,14 @@ export function reconcileBg(sid: string): number {
 
   // PID entries: keep alive ones, expand descendants of alive ones.
   if (hasBg) {
-    const tracked = new Set<number>();
+    const tracked = new Set();
     for (const f of readdirSync(bg)) {
       const pid = positiveInt(f);
       if (pid) tracked.add(pid);
     }
     const queue = [...tracked].filter(p => livePids.has(p));
     while (queue.length) {
-      const pid = queue.shift()!;
+      const pid = queue.shift();
       for (const child of childrenOf.get(pid) ?? []) {
         if (!tracked.has(child)) {
           tracked.add(child);
@@ -197,10 +195,10 @@ export function reconcileBg(sid: string): number {
   return alive;
 }
 
-export function writeSnapshot(file: string, pids: number[]): void {
+export function writeSnapshot(file, pids) {
   writeFileSync(file, JSON.stringify(pids));
 }
 
-export function readSnapshot(file: string): number[] {
-  return JSON.parse(readFileSync(file, "utf8")) as number[];
+export function readSnapshot(file) {
+  return JSON.parse(readFileSync(file, "utf8"));
 }

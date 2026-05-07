@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Detached polling daemon. Spawned by status.ts at Stop time when background
+// Detached polling daemon. Spawned by status.mjs at Stop time when background
 // shells are still alive. Owns caffeinate until either the bg set drains or
 // Claude itself exits.
 import { rmSync } from "node:fs";
@@ -10,7 +10,7 @@ import {
   reconcileBg,
   stopCaffeinate,
   watchdogPidFile,
-} from "./lib.ts";
+} from "./lib.mjs";
 
 const sid = process.argv[2];
 const claudePid = parseInt(process.argv[3] ?? "", 10);
@@ -19,7 +19,7 @@ if (!sid || !claudePid) process.exit(1);
 
 const POLL_MS = 10_000;
 
-function done(): never {
+function done() {
   stopCaffeinate(sid);
   rmSync(bgDir(sid), { recursive: true, force: true });
   rmSync(pgDir(sid), { recursive: true, force: true });
@@ -27,7 +27,7 @@ function done(): never {
   process.exit(0);
 }
 
-function tick(): void {
+function tick() {
   if (!isAlive(claudePid)) done();
   if (reconcileBg(sid) === 0) done();
 }

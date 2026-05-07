@@ -1,28 +1,28 @@
 {
   "hooks": {
     "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.ts" }] }
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.mjs" }] }
     ],
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.ts" }]
+        "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.mjs" }]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.ts" }]
+        "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.mjs" }]
       }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.ts" }] }
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.mjs" }] }
     ],
     "StopFailure": [
-      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.ts" }] }
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.mjs" }] }
     ],
     "SessionEnd": [
-      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.ts" }] }
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/status.mjs" }] }
     ]
   }
 }
