@@ -1,0 +1,13 @@
+{
+  "name": "barista",
+  "owner": {
+    "name": "willem"
+  },
+  "plugins": [
+    {
+      "name": "barista",
+      "source": "./plugins/barista",
+      "description": "barista caffeinates your claude"
+    }
+  ]
+}
