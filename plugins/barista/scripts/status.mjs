@@ -12,12 +12,12 @@ import {
   STATE_DIR,
   bgDir,
   descendantPids,
-  getPgid,
   hasLivePidFile,
   isAlive,
   killPidFile,
   pgDir,
   preToolSnapFile,
+  readProcTable,
   reconcileBg,
   readSnapshot,
   recordBg,
@@ -72,18 +72,22 @@ switch (event) {
     }
     break;
 
-  case "PostToolUse":
+  case "PostToolUse": {
+    let procs;
     if (isBgBash(payload) && existsSync(preToolSnapFile(sid))) {
+      procs = readProcTable();
       const before = new Set(readSnapshot(preToolSnapFile(sid)));
-      const after = descendantPids(claudePid, [process.pid]);
+      const after = descendantPids(claudePid, [process.pid], procs);
       const fresh = after.filter(pid => !before.has(pid) && isAlive(pid));
-      recordBg(sid, fresh, getPgid(claudePid));
+      const claudePgid = procs.find(p => p.pid === claudePid)?.pgid ?? 0;
+      recordBg(sid, fresh, claudePgid, procs);
       rmSync(preToolSnapFile(sid), { force: true });
     }
     // Even on non-bg tool calls, reconcile so descendants get captured while
     // their tracked parents are still alive.
-    reconcileBg(sid);
+    reconcileBg(sid, procs);
     break;
+  }
 
   case "Stop":
   case "StopFailure":

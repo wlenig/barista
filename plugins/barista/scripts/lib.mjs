@@ -57,7 +57,10 @@ export function parseProcTable(output) {
   return rows;
 }
 
-function readProcTable() {
+// Exported so a single hook invocation can read once and pass the snapshot
+// through to descendantPids / recordBg / reconcileBg, instead of each
+// re-shelling to `ps -A`. Also gives all three a coherent view of the system.
+export function readProcTable() {
   return parseProcTable(execSync("ps -A -o pid=,ppid=,pgid=").toString());
 }
 
@@ -99,17 +102,12 @@ export function stopCaffeinate(sid) {
   killPidFile(caffeinatePidFile(sid));
 }
 
-export function getPgid(pid) {
-  try {
-    return positiveInt(execSync(`ps -o pgid= -p ${pid}`).toString().trim());
-  } catch {
-    return 0;
-  }
-}
-
 // All PIDs in the descendant tree of `rootPid`, excluding any PID in `exclude`.
-export function descendantPids(rootPid, exclude) {
-  return descendants(childrenByParent(readProcTable()), rootPid, new Set(exclude));
+// Pass a pre-read `procs` to share a snapshot with other helpers in the same
+// hook invocation; otherwise reads its own.
+export function descendantPids(rootPid, exclude, procs) {
+  procs ??= readProcTable();
+  return descendants(childrenByParent(procs), rootPid, new Set(exclude));
 }
 
 // Record fresh bg PIDs. Process groups are tags, not tree edges — they survive
@@ -119,9 +117,10 @@ export function descendantPids(rootPid, exclude) {
 // dies and its children get adopted by PID 1. We only fall back to PID
 // tracking when the bg process happens to share Claude's pgid, in which case
 // we can't distinguish its descendants from Claude's own.
-export function recordBg(sid, pids, claudePgid) {
+export function recordBg(sid, pids, claudePgid, procs) {
   if (pids.length === 0) return;
-  const pidToPgid = new Map(readProcTable().map(p => [p.pid, p.pgid]));
+  procs ??= readProcTable();
+  const pidToPgid = new Map(procs.map(p => [p.pid, p.pgid]));
   const bg = bgDir(sid);
   const pg = pgDir(sid);
   for (const pid of pids) {
@@ -140,14 +139,14 @@ export function recordBg(sid, pids, claudePgid) {
 // Drop entries with no live representatives; for PID entries, also expand to
 // any live descendants so we keep tracking work even after the original
 // leader dies. Returns the number of items still considered alive.
-export function reconcileBg(sid) {
+export function reconcileBg(sid, procs) {
   const bg = bgDir(sid);
   const pg = pgDir(sid);
   const hasBg = existsSync(bg);
   const hasPg = existsSync(pg);
   if (!hasBg && !hasPg) return 0;
 
-  const procs = readProcTable();
+  procs ??= readProcTable();
   const livePids = new Set(procs.map(p => p.pid));
   const livePgids = new Set(procs.map(p => p.pgid));
   const childrenOf = childrenByParent(procs);
