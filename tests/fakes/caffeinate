@@ -1,0 +1,7 @@
+#!/bin/sh
+# Test fake: logs invocation flags + termination to $BARISTA_LOG and sleeps
+# forever, so tests can assert the real status.mjs spawned us with the right
+# args without actually disabling system sleep.
+echo "START $$ $*" >> "$BARISTA_LOG"
+trap 'echo "TERM $$" >> "$BARISTA_LOG"; exit 0' TERM INT
+while :; do sleep 1; done

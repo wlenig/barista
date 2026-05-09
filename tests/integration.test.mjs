@@ -1,12 +1,10 @@
 // Integration tests for status.mjs. Hooks are driven by piping payloads
-// through stdin, just like the real harness invokes them. `caffeinate` and
-// `ps` are replaced with shell-script fakes on PATH so tests are
-// deterministic and don't actually disable sleep — the fake caffeinate logs
-// START/TERM events with the flags it was invoked with, and the fake ps
-// reads its rows from a file the test writes.
+// through stdin, just like the real harness invokes them. The `caffeinate`
+// and `ps` binaries are shadowed via PATH by the executable scripts in
+// tests/fakes/ — the fake caffeinate logs START/TERM events to $BARISTA_LOG
+// and the fake ps reads its rows from $BARISTA_PS, both per-test files.
 import { spawn, spawnSync } from "node:child_process";
 import {
-  chmodSync,
   existsSync,
   mkdtempSync,
   readFileSync,
@@ -28,6 +26,7 @@ import {
 } from "../plugins/barista/scripts/lib.mjs";
 
 const STATUS_HOOK = resolve("plugins/barista/scripts/status.mjs");
+const FAKES_DIR = resolve("tests/fakes");
 const BACKGROUND_BASH = {
   tool_name: "Bash",
   tool_input: { run_in_background: true },
@@ -63,48 +62,17 @@ async function assertLogEventually(log, pattern) {
   await waitFor(() => assert.match(log(), pattern));
 }
 
-function createFakeCaffeinate(binDir) {
-  const script = `#!/bin/sh
-echo "START $$ $*" >> "$BARISTA_LOG"
-trap 'echo "TERM $$" >> "$BARISTA_LOG"; exit 0' TERM INT
-while :; do sleep 1; done
-`;
-  const path = join(binDir, "caffeinate");
-
-  writeFileSync(path, script);
-  chmodSync(path, 0o755);
-}
-
-function createFakePs(binDir) {
-  const script = `#!/bin/sh
-case "$1 $2 $3" in
-  "-A -o pid=,ppid=,pgid=")
-    cat "$BARISTA_PS"; exit 0 ;;
-  "-o pgid= -p")
-    awk -v pid="$4" '$1==pid{print $3; f=1} END{exit !f}' "$BARISTA_PS"; exit $? ;;
-esac
-exec /bin/ps "$@"
-`;
-  const path = join(binDir, "ps");
-
-  writeFileSync(path, script);
-  chmodSync(path, 0o755);
-}
-
 function createHookHarness(t, sid) {
-  const dir = mkdtempSync(join(tmpdir(), "barista-fake-"));
+  const dir = mkdtempSync(join(tmpdir(), "barista-test-"));
   const log = join(dir, "caffeinate.log");
   const psFile = join(dir, "ps.txt");
-
-  createFakeCaffeinate(dir);
-  createFakePs(dir);
   writeFileSync(psFile, "");
 
   const env = {
     ...process.env,
     BARISTA_LOG: log,
     BARISTA_PS: psFile,
-    PATH: `${dir}:${process.env.PATH}`,
+    PATH: `${FAKES_DIR}:${process.env.PATH}`,
   };
 
   t.after(() => {

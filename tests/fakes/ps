@@ -1,0 +1,11 @@
+#!/bin/sh
+# Test fake: serves the proc table from $BARISTA_PS so tests can stage
+# arbitrary pid/ppid/pgid rows. Falls through to /bin/ps for any flags
+# barista doesn't use, so unrelated callers in the test process keep working.
+case "$1 $2 $3" in
+  "-A -o pid=,ppid=,pgid=")
+    cat "$BARISTA_PS"; exit 0 ;;
+  "-o pgid= -p")
+    awk -v pid="$4" '$1==pid{print $3; f=1} END{exit !f}' "$BARISTA_PS"; exit $? ;;
+esac
+exec /bin/ps "$@"
